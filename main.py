@@ -155,7 +155,7 @@ class Node:
         data_length = int.from_bytes(conn.recv(4), byteorder='big')
         data = b''
         while len(data) < data_length:
-            chunk = conn.recv(1024)  # Читаем данные по 4 KB
+            chunk = conn.recv(1024)
             if not chunk:
                 raise ConnectionError("Соединение закрыто до завершения передачи данных")
             data += chunk
@@ -227,7 +227,7 @@ class Node:
         previous_block_hash = last_block["previous_hash"]
         difficulty = last_block["difficulty"]
         nonce = 0
-        self.logs.append("Начинаю процесс добычи блока")
+        self.logs.append("Начинат процесс добычи блока")
         start_time = time.time()
         for attempt in range(1, self.MAX_ATTEMPTS + 1):
             if self.is_mined.is_set():
