@@ -27,7 +27,6 @@ class Node:
     PEERS_BIN_PATH = 'data/peers.bin'
     TRANSACTION_BIN_PATH = 'data/transactions.bin'
     LEDGER_BIN_PATH = 'data/ledger.bin'
-    MEMORYPOOL_BIN_PATH = 'data/memorypool.bin'
     MAX_ATTEMPTS = 999999999999999
 
 
@@ -69,54 +68,48 @@ class Node:
                 pickle.dump([], new_ledger_bin)
         with open(self.LEDGER_BIN_PATH, 'rb') as ledger_bin:
             self.ledger = pickle.load(ledger_bin)
-        # memorypool
-        if not os.path.exists(self.MEMORYPOOL_BIN_PATH):
-            with open(self.MEMORYPOOL_BIN_PATH, 'wb') as new_memorypool_bin:
-                pickle.dump([], new_memorypool_bin)
-        with open(self.MEMORYPOOL_BIN_PATH, 'rb') as memorypool_bin:
-            self.memorypool = pickle.load(memorypool_bin)
-            # peers
-            if not os.path.exists(self.PEERS_BIN_PATH):
-                print("Вы собираетесь создать первоначальный узел. Задать первоначальний баланс?(y/n): ", end="")
-                respond = None
-                while respond not in ["y", "n"]:
-                    respond = input("")
-                if respond == "y":
-                    while True:
-                        try:
-                            self.balance = int(input("Введите сумму: "))
-                            break
-                        except ValueError:
-                            continue
-                # genesis block
-                genesis_block = {"hash": None,
-                              "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
-                              "time": str(int(time.time())),
-                              "block_index": 0,
-                              "height": 0,
-                              "difficulty": 5,
-                              "transactions": []} # генезис блок
-                coinbase_transaction = {"tx_index": 0,
-                                        "fee": 0,
-                                        "inputs": [],
-                                        "out": [{"value": self.balance,
-                                                 "p_key": self.p_key,
-                                                 "spent": False}]} # coinbase-транзакция
-                genesis_block["transactions"].append(coinbase_transaction)
-                self.ledger.append(genesis_block)
-                with open(self.PEERS_BIN_PATH, 'wb') as new_peers_bin:
-                    new_peers = [{"addr": self.addr,
-                                  "p_key": self.p_key,
-                                  "balance": self.balance}]
-                    pickle.dump(new_peers, new_peers_bin)
-                    print("Инициализирован первоначальный узел. Передайте эту копию другому пользователю")
-                with zipfile.ZipFile('copy.zip', 'w') as zipf:
-                    zipf.write('main.py')
-                    zipf.write(self.PEERS_BIN_PATH, 'data/peers.bin')
-                    zipf.write(self.LEDGER_BIN_PATH, 'data/ledger.bin')
-            with open(self.PEERS_BIN_PATH, 'rb') as peers_bin:
-                self.peers = pickle.load(peers_bin)
-                self.peers = [peer for peer in self.peers if peer["addr"] != self.addr]
+        # peers
+        if not os.path.exists(self.PEERS_BIN_PATH):
+            print("Вы собираетесь создать первоначальный узел. Задать первоначальний баланс?(y/n): ", end="")
+            respond = None
+            while respond not in ["y", "n"]:
+                respond = input("")
+            if respond == "y":
+                while True:
+                    try:
+                        self.balance = int(input("Введите сумму: "))
+                        break
+                    except ValueError:
+                        continue
+            # genesis block
+            genesis_block = {"hash": None,
+                          "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+                          "time": str(int(time.time())),
+                          "block_index": 0,
+                          "height": 0,
+                          "difficulty": 5,
+                          "transactions": []} # генезис блок
+            coinbase_transaction = {"tx_index": 0,
+                                    "fee": 0,
+                                    "inputs": [],
+                                    "out": [{"value": self.balance,
+                                             "p_key": self.p_key,
+                                             "spent": False}]} # coinbase-транзакция
+            genesis_block["transactions"].append(coinbase_transaction)
+            self.ledger.append(genesis_block)
+            with open(self.PEERS_BIN_PATH, 'wb') as new_peers_bin:
+                new_peers = [{"addr": self.addr,
+                              "p_key": self.p_key,
+                              "balance": self.balance}]
+                pickle.dump(new_peers, new_peers_bin)
+                print("Инициализирован первоначальный узел. Передайте эту копию другому пользователю")
+            with zipfile.ZipFile('copy.zip', 'w') as zipf:
+                zipf.write('main.py')
+                zipf.write(self.PEERS_BIN_PATH, 'data/peers.bin')
+                zipf.write(self.LEDGER_BIN_PATH, 'data/ledger.bin')
+        with open(self.PEERS_BIN_PATH, 'rb') as peers_bin:
+            self.peers = pickle.load(peers_bin)
+            self.peers = [peer for peer in self.peers if peer["addr"] != self.addr]
         # other
         self.max_retries = Node.MAX_RETRIES
         self.connections = 0
@@ -127,7 +120,7 @@ class Node:
     def bind(self):
         try:
             self.server_socket.bind(('0.0.0.0', 8080))
-            self.server_socket.listen(10)
+            self.server_socket.listen(socket.SOMAXCONN)
             self.logs.append("Узел запущен на порту 8080")
         except OSError as e:
             self.logs.append(f"Ошибка при привязке: {e}")
@@ -155,7 +148,7 @@ class Node:
         data_length = int.from_bytes(conn.recv(4), byteorder='big')
         data = b''
         while len(data) < data_length:
-            chunk = conn.recv(1024)
+            chunk = conn.recv(1024)  # Читаем данные по 4 KB
             if not chunk:
                 raise ConnectionError("Соединение закрыто до завершения передачи данных")
             data += chunk
@@ -227,7 +220,7 @@ class Node:
         previous_block_hash = last_block["previous_hash"]
         difficulty = last_block["difficulty"]
         nonce = 0
-        self.logs.append("Начинат процесс добычи блока")
+        self.logs.append("Начинаю процесс добычи блока")
         start_time = time.time()
         for attempt in range(1, self.MAX_ATTEMPTS + 1):
             if self.is_mined.is_set():
